@@ -1,0 +1,205 @@
+---
+title: "Parking Strategy: Minimizing Risk of Parking Violations"
+subtitle: "Evidence from public parking tickets in a large urban area"
+author: "Brandon Dey"
+date: "7/3/2017"
+output: pdf_document
+abstract: "Getting a parking ticket saps multiple minutes of enjoyment of the day in which the author falls victim to Milwaukee's diligent meter maids. In this paper the author explores various strategies to save him -- and hopefully countless college students and other vehicular deviants -- these minutes, not to mention money. The motivation is also in the spirit of the following: If you're going to risk a ticket, it might as well be a calculated risk. This paper does the calculations. It blends theoretical and empirical."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+# 0 My questions, goals, and notes
+## 0.01 Goals
+1. Help Milwaukeeans avoid parking tickets by answering:
+* How far away is the meter maid?
+* Will they come your way?
+* How long do I have till they get here? (How fast do meter maids travel? (Distance between tickets in timeframe / timeframe))
+* This works if there’s only 1 meter maid. Is there any evidence to suggest that more than one meter maid patrols this area?
+
+2. Verifying my results are robust to real-world application. I.e., simulate if this information would be better than current parking strategy. Could do this by building a Shiny app that visualizes chosen strategies in competition.
+* building a visualization tool
+
+## 0.1 Economic Questions 
+### What information is needed to best avoid parking tickets throughout the year?
+0. Where the meter maid is, the direction they're heading (toward/away) and when they'll arrive if they're coming toward you.
+1. Given any destination in MKE, where should you park to minimize your risk of getting a ticket? For every address in Milwaukee, define a boundary around it such that all nearby addresses are within walking distance of some maximum number of minutes. Then choose the address that's least likely to be ticketed, given a set of circumstances, including time of day, season, and location. Formally, this might look like: 
+$$R_i = f() \forall A_i$$ 
+define a “walkable boundary”, $B_i$, around $A_i$ such that every address $Ax_j,...,Ax_n | Minutes \in B_i$ from $A_i$. $$B_i = (Ax_j,..,Ax_k)$$ Then find $Ax_j \in B_i$ that minimizes $R$. There could be more than one address that minimizes $R$, so in the event of a tie, pick the $A_j$ that's nearest $A_i$. Namely, the $A_j$ that minimizes $|A_i,A_j|$. Show trade off between an uptick in the risk of being ticketed contrasts with getting to your destination faster. Notation: Where $R$ is ticket risk.
+An example interpretation might be: For every 1 minute away from A you park, you reduce your chance of getting a ticket by X %. Or, conversely, for every 10% increase in the risk of getting a ticket, you can get to A, M minutes faster. Or parking 1 minute closer reduces your risk of getting a ticket by 10%, etc. Then compare how these tradeoffs vary in rate by block. Some blocks will have evenly distributed ticket risk, while there may be some where this is meaningful. Consider looking around UWM or Marquette.
+4. Can I estimate how much a user with this knowledge stands to save? Use a simulation that pits my strategy with different ones. Say, always parking at the $kth$ nearest spot away from $A_i$. This changes based on varying parameters. 
+5. Supply vs Demand failures. Can I estimate the number of parking spots available in an area? Including parking garages, lots, etc. Then use population density estimates to come up with a ratio of driving-aged people:parking spots and see if it’s correlated with the number of tickets in a given boundary. Think I'll need to estimate the number of people living on a block...Find areas of the city that clearly need more parking options.  
+
+
+## 0.2 Descriptive Questions:
+### What's essential to describe this data?
+1. How many tickets total?
+* By street
+* By neighborhood 
+* By time (dow, hour)
+2. What’s the most ticketed address?
+3. What blocks get the fewest tickets per no-parking sign (but could get more)? Need to normalize by no-parking sign or similar because blocks with no tickets will fuzzy the meaning/inference
+* What blocks have most of their addresses ticketed?
+4. What’s the peak time of being ticketed for each block/zones/neighborhoods by season?
+5. What block got the most tickets in a day
+
+
+# To Do:
+* Ingest property data.
+* Put in a public records request for more data?
+
+
+# Useful Links
+1. [Comprehensive list of Math symbols in LaTeX](https://en.wikibooks.org/wiki/LaTeX/Mathematics#Symbols)
+2. [Great summary of LaTeX](http://www.statpower.net/Content/310/R%20Stuff/SampleMarkdown.html)
+3. [Random walk simulation from MIT](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-00sc-introduction-to-computer-science-and-programming-spring-2011/unit-2/lecture-12-introduction-to-simulation-and-random-walks/)
+
+\newpage
+# 1 Introduction
+
+# Background 
+Haven't decided if this section is necessary. 
+The city makes M money on parking tickets. They spend it on X Y and Z. It's an imptortant and large source of income for the city. Drivers hate tickets. Yadda yadda.
+
+
+# 2 Literature Review
+Economists all live within walking distance to their universities, so research on parking violations is scant.^[This is a joke.] Aside from normative discusssion and curbside griping, little attention has been paid to actually avoiding parking tickets. The present paper hopes to be one of the first to contribute to allaying this social problem, namely by presenting information and evaluating varios strategies helpful in avoiding them. Specifics above.
+
+
+# 3 Data
+1. [2012 parking violations](http://milwaukeedata.org/resource/18992)
+2. [Parking sign locations](http://milwaukeedata.org/resource/18989)
+3. [City Block Data](http://city.milwaukee.gov/DownloadMapData3497.htm#.Vq0K_lMrJPM)
+4. [Weather Data](http://mesowest.utah.edu/)
+5. Parking ticket fees (wasn't included in ticket data): pulled from city site.  
+6. [All mke properties](http://itmdapps.milwaukee.gov/publicApplication_QD/queryDownload/login.faces)
+
+#### Parking Tickets
+#### Parking Signs
+#### City Blocks
+#### MKE Properties
+
+###I need to address:
+* how to remove parking spots one can't park in legally. Becuase recommending an illegal spot would be bad. and need accurate supply levels 
+* it's possible that more than one vehicle can park at a single address. This is especially true for large buildings. Determine if it's important to get the number of parking spot/stall estimates for a given block or address. I could do this by determining length of blocks then doing some educated division to get typical block specific parking stall length? 
+
+## Lots of it! 
+The original dataset has 730K observations, but after creating a time series for more information, n swells by a factor of nearly 2600. This is because every address has a risk score for every hour of every day in 2012, or 8,760 scores over the year. Summed over all 216,260 distinctly ticketed addresses, the total number of risk scores across the city is then 1,894,437,600. A lot, to say the least. To simplify the number of assumptions the analysis makes, the author limits the data to areas where parking poses the largest problem, measured in number of violations issued. Specifically, the East Side, UWM, Marquette, Downtown, Thirdward, etc. 
+
+\newpage
+###Notes
+Do I need to estimate the number of meter maids working in a timeframe?
+Infer the the number of meter maids patrolling in a neighbor by doing somethig like:
+$$\frac{MaximumTickets_{h,i}}{Est.MeterMaidProductivityRate_{h,i}}$$
+where $MaximumTickets_{h,i}$ is the maximum tickets issued in one hour in neighborhood i. And $Est.MetermaidProductivityRate_{h,i}$ is in $Tickets/Hour$ and I take a good guess about what it is, talk to someone, etc.
+I may need to try defining neighborhood/mm jurisdictions for this. Or just look it up in the city's records.
+
+
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+parkingsigns <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/ParkingSpaces_MKE.csv", header = T)
+
+#This includes blocks and ALL addresses? Was retrieved from: 
+mkestreets <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/MKE Streets Data.csv", sep = ",", header = T)
+
+parkingsigns <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/ParkingSpaces_MKE.csv", header = T)
+mkestreets <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/MKE Streets Data.csv", sep = ",", header = T)
+
+#these two sources are not working
+adjacentspots_coord <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/adjacentspots_with_coords.csv", skip = 1, sep = ";", header = T)
+adjacentspots <- read.csv("/Users/brandondey/Documents/Projects/Data Science/Projects/MKE_Parking_Ticket_Proj/adjacentspots.csv", sep = ",", header = T)
+```
+
+# 4 Model
+## What am I modeling?
+0. Where's the meter maid and how long till they get here! (For a given address $A_i$ and hour $h$ ($A_{i,h}$), calculate the distance from the nearest-issued ticket $t_{near,h-1}$ in $h-1$, the parked-car density between there and here in order to guesstimate how long it will take before they arrive.) 
+1. The risk (probability P) of address A getting a violation V at time T. This could be a function(parkedcar? + a meter maid in proximity in t-1, distance from proximal meter maid in t-1, # of cars to check between proximal and here, + time of day t, weather(?), spots available/population density (these may not always be correlated), neighborhood, # of meter maids working, + error). Formally: 
+$$R_{i,h,d}$$
+
+where $R_{i,h,d}$ is a measure of the risk of the $i$th address getting any parking ticket in the $h$ hour of day $d$. It follows that every address will have a risk score for every hour of every day in 2012, or 8,760 scores over the year, summed over all 216,260 distinctly ticketed addresses puts the total number of risk scores at 1,894,437,600.  
+
+### Assumptions
+1. That meter maids are perfectly thorough. That is, if a ticket was issued on a block, then all spots that side of street (*for that block at least*) was inspected by the meter maid. Therefore all other $A$ in the ticketed $A$'s vicinity are assumed to not have received a ticket. But there need not have been cars parked there; either there is a car parked legally or there's no car. Whether there's a car there or not, that spot's risk is 100% because they were close enough to get caught. **More assumptions need to be made about the blocks that do not observe any ticket in some time period. In order to determine an addresses true risk, the begged question that needs answering is: did the mm go there or not?** First determine how often this happens. Then see if it's possible to guesstimate the meter maid's path of travel from ticketed blocks using random walk with quasi-non random bayesian updating based on the areas a meter maid knows are more susceptible for delinquent parkers.I could use game theory to model play between the meter maid and a driver locked in a game of cat and mouse/mice. A driver adopting my strategy is trying to outfox the meter maid, while the meter maid casually dines on all the other options. To illustrate, consider the possibility that I'm a bayesian cat. On day 1, I have no idea where my meals will be. So I follow the route ordained to me by my superior cats, the city officials. I visit address $A_1h$ ten times throughout the day, and six of the times I issue a ticket. This seems like a lot to me, a good meal. So on day two, I make an especial effort to come back, if I’m in the area, to verify my theory that currently only hinges on an n of only 1. 50% of these visits *also* result in a ticket. I repeat this day in and day out resulting in my hypothesis of the expected delinquency of address $A_i$ in hour $h$, or $A_{1h}$. If I do this for all the addresses on my route, then I can more efficiently plan my route. **By doing some maths and path optimization.**^[This could be a paper all by itself...The city would have interest in results. (One could reinforce this theory in a number of ways: consider perhaps if spots A - 1 and A + 1 (or some +/- k) are not used by delinquent drivers. (Maybe those drivers aren't in the habit of not feeding their meter or something.) Codify this in a bayesian framework. Posteriors (or updated a prior) could inform a random walk to make it less random.] For blocks of the city that I can verify not having been travelled to in an hour, or day, check to see if they've ever been ticketed, in, say, a week or time t. Knowing this will allow me to hike up the risk there while dampening or setting risk to areas without this trait at 0, or some lower estimate. 
+2. At the end of the block the meter maid makes a turn with probability = 1/total turns available, unless there's an observed ticket down one block and none of the others, then they turn. Can I infer the direction/ route of path by looking at tickets down parallel or perpendicular blocks?
+
+
+# 5 Estimation techniques
+"I'm thinking, I'm thinking..."
+
+1. Where will the meter maid turn? 
+* A Monte-carlo method might be useful. 
+* [Agent based model](http://www.agent-based-models.com/blog/about/)
+
+# 6 Results
+Hopefully something usable, like an interactive RShiny visualization. Failing that, this paper will do.
+
+# 7 Probes of robustness
+The simulation. 
+This strategy isn't immediately synthesizable. There will be asymmetric information so estimates could be high. Be conservative.
+
+# 8 Conclusion
+Go now, park in peace!  
+(Are there tenable parking regulation recommendations?)
+(Does this generalize to now? Data's 5 years old...)
+
+# References
+* [MIT](http://dusp.mit.edu/faculty/eran-ben-joseph)
+* ["Parking Pricing" as solution to congestion](http://escholarship.org/uc/item/1495x4k1#page-1)
+* [Population density and curbside parking space](http://escholarship.org/uc/item/485983zw#page-1)
+* [ACCESS Magazine](http://www.accessmagazine.org/about/) reports on research at the University of California Transportation Center and the University of California Center on Economic Competitiveness. See thier stuff on parking, [here](http://www.accessmagazine.org/tag/parking/).
+* Maybe FREE parking is too cheap: http://www.nytimes.com/2010/08/15/business/economy/15view.html
+* San Fran has [meters](http://sfpark.org/about-the-project/) that price to current demand to help congestion. 
+* [A study on its effectiveness](http://www.sciencedirect.com/science/article/pii/S0739885914000067)
+* [Its criticisms](http://www.parkingtoday.com/articledetails.php?id=1229)
+* Journal of the Economics of Transportation
+* Review MKE's Minimum Parking Standards, or minimum parking requirements for new buildings. It's a zoning law. Lot's of tension here, at least from economists.
+* [MKE Financial Reports](http://city.milwaukee.gov/ImageLibrary/User/pmensa/2012FinancialReport.pdf)
+* [Corrpution and parking tickets in NYC](http://www.nber.org/papers/w12312)
+Profs with relevant research:
+* [Dr. Donald Shoup of UCLA](http://www.shoupdogg.com/about/)
+* [Dr. Erin Incc of Sabanci U](http://people.sabanciuniv.edu/ereninci/files/ereninci-cv.pdf)
+* [Estimating parking supply in LA County](http://www.accessmagazine.org/fall-2016/do-cities-have-too-much-parking/)
+* [Op Ed in NYT by Shoup](http://www.nytimes.com/2007/03/29/opinion/29shoup.html)
+
+
+##MKE Specifically
+* [Parking Ticket Nightmare, OnMilwaukee](http://onmilwaukee.com/buzz/articles/parkingticketnightmare.html)
+* [Parking ticket quotas](http://theexpiredmeter.com/2012/07/milwaukee-tv-station-exposes-citys-parking-ticke-quotas/) 
+
+### Da lingo, Mane
+herterogenity (vs differences)
+homogenoity (vs similarity)
+"plausibly exogenous variation" in treatment
+preferred models
+principal models
+confirmatory models
+baseline models
+with respect to specific outcomes
+to validate my research design
+heterodongenous effects (vs different effects)
+restrict the sample (vs filter the dataset)
+observations were dropped
+statistical significance at conventional levels
+identification strategy
+the present study
+the present paper
+the author
+interdisciplinary literature (vs research)
+calculate treatment effects
+current state of the literature
+falsification test
+sub-population
+for instance (no comma!)
+validity of analysis
+estimation sample (vs training df)
+potential concern
+kernal density plot 
+ascertain
+destabalize estimates
+sample covariance matrix
+use the data to estimate variations in the model
+where y is; i is ; j is . (in notation separate with ;)
+the primary coefficient of interest is, which estimates the conditional change of...from a unit increase in...
