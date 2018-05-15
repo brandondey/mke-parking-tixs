@@ -4,97 +4,12 @@
 #
 # Purpose: 
 #   This script contains all the custom functions (self-written and forked from others) for the MKE Parking Ticket project.
-#   It saves each function as an object in a .rds in ./Scripts/MKE_Parking_Functions.rds
+#   It saves each function as an object in a .rds, here: "./Scripts/MKE_Parking_Functions.rds"
 #
 # Highlights: 
 #   
 #
 
-
-# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
-# Environment
-# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
-
-# Load libraries
-library(tidyverse)
-library(gmapsdistance)
-
-# load cleaned objects for testing functions
-load(file = "./Data/Clean/cleanedtickets_etc.Rdata")
-
-
-# function gets:
-#   time and address of nearest ticket in the last twelve hours
-#   driving time from there to here
-#   whether ticketed address is on the same street
-#     and whether it’s on the same side of street
-#   number of addresses between ticketed address and address on ticketed address’s side of street
-# cant' use departure time and date because function requires future dates/times.
-
-results = gmapsdistance(origin, destination, mode = "driving", shape = "long")
-results
-
-glimpse(adh_uwm)
-
-adh_uwm %>%
-  unite(coordinates, lat, lon, sep = "+") %>%
-  select(coordinates) %>%
-  unique() %>%
-  arrange(coordinates) -> unique_coordinates
-
-expand.grid(origin = unique_coordinates$coordinates, 
-            destination = unique_coordinates$coordinates) %>% arrange(origin, destination) %>%
-  filter(origin != destination) -> origin_destinations
-
-origin_coords <- origin_destinations$origin
-dest_coords <- origin_destinations$destination
-  
-origin_coords[1:2500]
-dest_coords[1:2500]
-
-results = gmapsdistance(origin = origin_coords[1:2498], dest_coords[1:2498], 
-                        mode = "driving", 
-                        shape = "long")
-results
-
-#Calculate distances between all the top 100 ticketed addreses around UWM.
-d <- uwm_topaddresses[,c("long", "lat")]
-distances <- geosphere::distm(x = d, fun = distHaversine) #to limit use: d[1:10,]. # distHaversine assumes the earth is a perfect sphere. It's not. It's eppiloidal.
-distances <- distances*3.28084 # convert meters to feet
-dim(distances)
-
-# this function finds the nearest ticketed address from an input and spits out 
-# the location and distance from the address.
-get_nearest_ticket <- function(distance_matrix, addresses) {
-  
-  for (c in 1:ncol(distance_matrix)) {
-    
-    closest_rank <- match(min(distance_matrix[distance_matrix[,c]!=0,c]), distance_matrix[,c])
-    distance <- distance_matrix[closest_rank]
-    closest_location <- addresses[addresses$rank==closest_rank, "location"]
-    row <- cbind(closest_rank, distance, closest_location)
-    if(c == 1){
-      df_to_add  <<- row
-    } else {
-      df_to_add <<- data.frame(rbind(df_to_add, row))
-    } #end if
-    print(row)
-  }# end for
-  
-  # create new data frame of addresses with distance to closest ticket. 
-  # columns must be the same to cbind()
-  
-  #names(df_to_add) <<- c("closest_rank", "distance", "closest_location")
-  
-  addresses_new <<- cbind(addresses, df_to_add)
-  
-}#end function
-
-
-
-if ( exists("address_dictionary") )  {
-  rm(address_dictionary)
-} 
 get_block_addresses <- function( block_df ){
 # create a dataframe called address_dictionary with all addresses between where a block starts and ends. 
 #
@@ -125,13 +40,9 @@ get_block_addresses <- function( block_df ){
 }#end function
 
 
-
-
-
-
-# census_geocoder from: https://github.com/SigmaMonstR/census-geocoder
 census_geocoder <- function(address, type, secondary, state){
 # Overview
+# Author: SigmaMonstR @ Github.  https://github.com/SigmaMonstR/census-geocoder  
 #   census_geocoder gets lattitude and longitude coordinates for an address by using the US Census Bureau's geocoder. (For free.)
 #   runs for a single address at a time.
 #   e.g.: census_geocoder(address = "463 W LOCUST ST", secondary = "Milwaukee", type = F, state = "WI")
@@ -217,8 +128,6 @@ save(get_block_addresses,
 
 
 
-
-
 # THIS TESTS GET_BLOCK_ADDRESSES ON A RANDOM SAMPLE OF ADDRESSES
 # 
 # block_sample <- blocks %>%
@@ -229,3 +138,9 @@ save(get_block_addresses,
 #   select(-HI_ADD_L, -HI_ADD_R, -LO_ADD_L, -LO_ADD_R)
 # # test get_block_addresses
 # get_block_addresses(block_sample)
+
+# Calculate distances between all the top 100 ticketed addreses around UWM.
+# d <- uwm_topaddresses[,c("long", "lat")]
+# distances <- geosphere::distm(x = d, fun = distHaversine) #to limit use: d[1:10,]. # distHaversine assumes the earth is a perfect sphere. It's not. It's eppiloidal.
+# distances <- distances*3.28084 # convert meters to feet
+

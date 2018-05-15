@@ -11,14 +11,15 @@
 #
 #
 # Working To Do list:
-#   write function to get location stats 
-#   test on uwm_adh (top 100 addresses around UWM for roughly the first quarter of 2012)
-#   visualize
-#   model?
-#   use function on all UWM addresses, not just the top 100 spots
-
-
-
+#   Write get_nearest_ticket
+#   Test on uwm_adh (top 100 addresses around UWM for roughly the first quarter of 2012)
+#   Run on all UWM addresses, not just the top 100 spots
+#   Get vars:
+#       whether ticketed address is on the same street as input address
+#         and whether it’s on the same side of street
+#           number of addresses between ticketed address and input address’s side of street
+#   Visualize
+#   Model?
 
 # ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 # Environment
