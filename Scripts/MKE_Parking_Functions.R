@@ -1,22 +1,67 @@
-# this script contains all the functions I wrote custom for the MKE Parking Ticket project.
-# it saves each function as an object in a .rds in ./Scripts/MKE_Parking_Functions.rds
+# Author: Brandon Dey
+#
+# Date: 5/14/18
+#
+# Purpose: 
+#   This script contains all the custom functions (self-written and forked from others) for the MKE Parking Ticket project.
+#   It saves each function as an object in a .rds in ./Scripts/MKE_Parking_Functions.rds
+#
+# Highlights: 
+#   
+#
 
 
+# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
+# Environment
+# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 
+# Load libraries
 library(tidyverse)
-require(geosphere)
+library(gmapsdistance)
 
 # load cleaned objects for testing functions
 load(file = "./Data/Clean/cleanedtickets_etc.Rdata")
+
+
+# function gets:
+#   time and address of nearest ticket in the last twelve hours
+#   driving time from there to here
+#   whether ticketed address is on the same street
+#     and whether it’s on the same side of street
+#   number of addresses between ticketed address and address on ticketed address’s side of street
+# cant' use departure time and date because function requires future dates/times.
+
+results = gmapsdistance(origin, destination, mode = "driving", shape = "long")
+results
+
+glimpse(adh_uwm)
+
+adh_uwm %>%
+  unite(coordinates, lat, lon, sep = "+") %>%
+  select(coordinates) %>%
+  unique() %>%
+  arrange(coordinates) -> unique_coordinates
+
+expand.grid(origin = unique_coordinates$coordinates, 
+            destination = unique_coordinates$coordinates) %>% arrange(origin, destination) %>%
+  filter(origin != destination) -> origin_destinations
+
+origin_coords <- origin_destinations$origin
+dest_coords <- origin_destinations$destination
+  
+origin_coords[1:2500]
+dest_coords[1:2500]
+
+results = gmapsdistance(origin = origin_coords[1:2498], dest_coords[1:2498], 
+                        mode = "driving", 
+                        shape = "long")
+results
 
 #Calculate distances between all the top 100 ticketed addreses around UWM.
 d <- uwm_topaddresses[,c("long", "lat")]
 distances <- geosphere::distm(x = d, fun = distHaversine) #to limit use: d[1:10,]. # distHaversine assumes the earth is a perfect sphere. It's not. It's eppiloidal.
 distances <- distances*3.28084 # convert meters to feet
-
-
 dim(distances)
-
 
 # this function finds the nearest ticketed address from an input and spits out 
 # the location and distance from the address.
@@ -44,15 +89,6 @@ get_nearest_ticket <- function(distance_matrix, addresses) {
   addresses_new <<- cbind(addresses, df_to_add)
   
 }#end function
-
-# remove objects created outside function scope
-rm(df_to_add, addresses_new, row)
-
-#test get_nearest_ticket
-get_nearest_ticket(distances, uwm_topaddresses)
-
-
-
 
 
 

@@ -1,11 +1,19 @@
-##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
+# Author: Brandon Dey
+#
+# Date: 5/14/18
+#
+# Purpose: 
+#   This script imports data from various sources and does some basic cleaning. 
+#   Exports "./Data/Clean/cleanedtickets_etc.Rdata", which is all the cleaned objects.
+#
+# Highlights: 
+#   
+#
+# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
+# Environment
+# ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 
-# This script contains imports data from various sources, does some basic cleaning, 
-# and exports a .rdata object with cleaned objects.
-
-##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
-
-
+# Load libraries
 library(foreign)
 library(tidyverse) # loadd ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr, forcats
 library(data.table)
@@ -16,8 +24,8 @@ library(lubridate)
 #Grooming
 ##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 
-#First fix the time issue: i didn't import the issuetm into stata correctly. manually fix.
-#Note that Stata records datetime values as the number of milliseconds since 01jan1960.
+# First fix the time issue: i didn't import the issuetm into stata correctly.
+# Note that Stata records datetime values as the number of milliseconds since 01jan1960.
 
 tickets <- read.dta("./Data/Clean/2012 MKE Parking Ticket.dta", 
                     convert.factors = FALSE) # Don't convert Stata value labels to R factors. If T, there's an error: factor level [39] is duplicated
@@ -35,7 +43,6 @@ blocks %>%
   mutate(BLOCK_ST = pmin(LO_ADD_L, LO_ADD_R), 
          BLOCK_END = pmax(HI_ADD_L, HI_ADD_R)) -> blocks
 
-  
 # select and arrange needed variables
 tickets <- tickets %>% 
   select(-issuetm, -time, -UniqueID, -feelslike)
@@ -107,7 +114,7 @@ blocks %>% filter(STREET %in% uwm_street_names) -> uwm_blocks
 # get custom functions
 load("./Scripts/MKE_Parking_Functions.rds")
 
-# get all the addresses on blocks in uwm_blocks. This creates a df called address_dictionary
+# get all the addresses on blocks in uwm_blocks. This creates a df called address_dictionary with all the addresses on every block in uwm_blocks
 get_block_addresses(uwm_blocks)
 
 # create variable of whole address to look up in geocoder census_geocoder.
@@ -115,14 +122,49 @@ address_dictionary %>%
   mutate(whole_address = paste(location, block_street_direction, 
                                block_street, block_street_suffix, sep = " ")) -> address_dictionary
 
-# geocode lots of addresses around UWM. It takes about 2 seconds to geocode an address.
+
+##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
+# Geocode lots of addresses around UWM. It takes about 2 seconds to geocode an address.
+##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
+
 uwm_geocoded <- lapply(address_dictionary$whole_address, FUN = census_geocoder, secondary = "Milwaukee", type = F, state = "WI")
 
+# how many uwm addresses couldn't be geocoded?
+sum(unlist(lapply(uwm_geocoded, FUN = is.null)))
 
-rm(fromstata_dttm, fromstata_newtms)
+# squash list of dataframes into a single one.
+flattened_uwm_geocoded <- plyr::rbind.fill(uwm_geocoded)
+
+# create var called location that matches same format as location var in adh_uwm
+flattened_uwm_geocoded %>% # don't worry about the "Expected 1 pieces" warning. From the second "," after MKE in addresses.
+  separate(col = address, into = "location", sep = ",") -> flattened_uwm_geocoded
+
+# convert to character to join
+adh_uwm$location <- as.character(adh_uwm$location)
+
+# join all lat/long coordinates. left join in case the address wasn't geocoded.
+adh_uwm <- left_join(adh_uwm, flattened_uwm_geocoded, by = "location")
+
+# remove lat long columns in uwm
+uwm <- uwm[, c("location","day", "hour", "tickets")]
+
+# join the ticketed addresses with the day/time df to show ticket history at each ticketed spot over time
+adh_uwm <- merge(x = uwm, y = adh_uwm, by = c("hour", "day","location"), all.y = T) %>%
+  mutate(tickets = ifelse(is.na(tickets), 0, tickets)) %>% # NAs to 0
+  arrange(location, day, hour)
+
+# create address vars without suffix so I can join block df to adh_uwm
+gsub("\\s*\\w*$", "", address_dictionary$whole_address) -> address_dictionary$whole_address_no_suffix
+gsub("\\s*\\w*$", "", adh_uwm$location) -> adh_uwm$location_no_suffix
+
+# Join ticket data with block data
+adh_uwm %>%
+  inner_join(address_dictionary, by = c( "location_no_suffix" = "whole_address_no_suffix")) %>%
+  select(-contains(".")) -> adh_uwm
 
 # save objects 
 save(
+    adh_uwm,  
     blocks, 
     neighborhoods, 
     tickets, 
