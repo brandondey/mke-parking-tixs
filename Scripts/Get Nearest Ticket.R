@@ -16,11 +16,10 @@
 # Load libraries
 library(tidyverse)
 library(gmapsdistance)
+library(ggmap) # cite ggmap: citation('ggmap')
 
 # load cleaned objects for testing functions
 load(file = "./Data/Clean/cleanedtickets_etc.Rdata")
-
-glimpse(adh_uwm)
 
 # Get a unique vector of addresses around uwm. Should be 100.
 adh_uwm %>%
@@ -32,18 +31,53 @@ adh_uwm %>%
 glimpse(unique_coordinates)
 
 # Get drive time and distance between top addresses around UWM.
-top_uwm_gmap <- gmapsdistance(origin = head(unique_coordinates$coordinates, 10), head(unique_coordinates$coordinates, 10), 
+# Can't use departure time and date because gmapsdistance requires future dates/times only.
+
+gmap_me_coords <- head(unique_coordinates$coordinates, 10)
+
+top_uwm_gmap <- gmapsdistance(origin = gmap_me_coords, gmap_me_coords, 
                               mode = "driving", 
                               shape = "long")
-
 # The distance is returned in meters and the time in seconds.
-top_uwm_gmap
 
 
 
+# Plot 
+data.frame(lat = lapply(str_split(gmap_me_coords, pattern = "[+]"), `[[`, 1) %>% unlist, 
+           lon = lapply(str_split(gmap_me_coords, pattern = "[+]"), `[[`, 2) %>% unlist) -> gmap_coords_df
+
+gmap_coords_df %>%
+  mutate(lat = as.numeric(as.character(lat)), 
+         lon = as.numeric(as.character(lon))) -> gmap_coords_df
 
 
-# cant' use departure time and date because function requires future dates/times.
+# Get the base map from maps.google api
+gg_map_base <- get_map(location = c(Longitude = mean(gmap_coords_df$lon), 
+                                    Latitude = mean(gmap_coords_df$lat) + 0.001), 
+                       zoom = 15, 
+                      maptype = "roadmap", scale = 2)
+# base map
+ggmap(gg_map_base) 
+
+title <- "Ten Locations around UWM"
+ggmap(gg_map_base) + # plot the map with all uwm points on it
+  geom_point(data = gmap_coords_df, aes(x = lon, y = lat, 
+                 alpha = 0.6), 
+             fill = "red", 
+             size = 1, 
+             shape = 21) +
+  
+  guides(alpha = F, size = F, fill = F) +
+  ggtitle(title) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+dev.off()
+
+ggsave(title, 
+       height = 10, 
+       width = 10,
+       device = "jpeg", 
+       path = "./Plots")
 
 # Get variables in a sensible order
 adh_uwm %>%
@@ -58,7 +92,7 @@ adh_uwm %>%
 #   Driving time and distance between input and output
 #  
 
-
+top_uwm_gmap
 
 get_Nearest_ticket <- function(distance_matrix, addresses) {
   
