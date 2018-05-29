@@ -18,6 +18,8 @@ library(foreign)
 library(tidyverse) # loadd ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr, forcats
 library(data.table)
 library(lubridate)
+library(openxlsx)
+
 
 
 ##_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
@@ -161,6 +163,28 @@ gsub("\\s*\\w*$", "", adh_uwm$location) -> adh_uwm$location_no_suffix
 adh_uwm %>%
   inner_join(address_dictionary, by = c( "location_no_suffix" = "whole_address_no_suffix")) %>%
   select(-contains(".")) -> adh_uwm
+
+# fix date times, finally.
+read.xlsx("/users/brandondey/documents/projects/Data Science/MKE_Parking_Tickets/Data/Clean/2012 tickets issued.xlsx", 
+          sheet = 1, 
+          detectDates = T) -> raw_tix
+
+raw_tix$issue_dttm <- as.Date(raw_tix$ISSUEDATE) + lubridate::seconds(raw_tix$ISSUETIME*24*60*60)
+
+summary(raw_tix)
+
+raw_tix %>% 
+  select(ISSUENO, issue_dttm, VIODESCRIPTION) -> raw_tix 
+
+tickets %>% 
+  merge(raw_tix, 
+        by.x = "tixno", by.y = "ISSUENO") %>%
+  select(-newtm, -snowin, -visibilitymiles, -gustmph, -windmph, -temp) -> tickets
+
+colnames(tickets) <- tolower(colnames(tickets))
+tickets <- unique(tickets)
+
+
 
 # save objects 
 save(

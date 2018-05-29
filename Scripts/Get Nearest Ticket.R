@@ -1,13 +1,18 @@
 # Author: Brandon Dey
 #
-# Date: 5/14/18
+# Date: 5/28/18
 #
 # Purpose: 
 #   Working script as I develop get_Nearest_ticket()
+# 
 #
+# Input: a whole_address in an hour on a given day. 
+# Output: 
+#   Exact time and address of <nearest> ticket in the last <twelve> hours
+#   Driving time and distance between input and output
+#  
 # Highlights: 
 #   
-#
 
 # ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 # Environment
@@ -18,157 +23,169 @@ library(tidyverse)
 library(gmapsdistance)
 library(ggmap) # cite ggmap: citation('ggmap')
 library(gganimate)
+library(Imap)
+library(openxlsx)
+library(lubridate)
+library(sqldf)
 
-# load cleaned objects for testing functions
+#load cleaned objects for testing functions
 load(file = "./Data/Clean/cleanedtickets_etc.Rdata")
 
-# Get a unique vector of addresses around uwm. Should be 100.
 
-adh_uwm %>%
-  mutate(gmap_coordinates = paste(lat,lon, sep = "+"),
-         lat = as.numeric(as.character(lat)), 
-         lon = as.numeric(as.character(lon))
-         ) -> adh_uwm
-
-adh_uwm %>%
-  select(gmap_coordinates, whole_address) %>%
-  unique() %>%
-  arrange(gmap_coordinates) -> unique_coordinates
-
-glimpse(unique_coordinates)
-
-# Get drive time and distance between top addresses around UWM.
-# Can't use departure time and date because gmapsdistance requires future dates/times only.
-
-gmap_me_coords <- head(unique_coordinates$gmap_coordinates, 10)
-
-top_uwm_gmap <- gmapsdistance(origin = gmap_me_coords, gmap_me_coords, 
-                              mode = "driving", 
-                              shape = "long")
-
-# The distance is returned in meters and the time in seconds.
-
-
-
-# Plot 
-data.frame(lat = lapply(str_split(gmap_me_coords, pattern = "[+]"), `[[`, 1) %>% unlist, 
-           lon = lapply(str_split(gmap_me_coords, pattern = "[+]"), `[[`, 2) %>% unlist) -> gmap_coords_df
-
-gmap_coords_df %>%
-  mutate(lat = as.numeric(as.character(lat)), 
-         lon = as.numeric(as.character(lon))) -> gmap_coords_df
-
-
-# Get the base map from maps.google api
-gg_map_base <- get_map(location = c(Longitude = mean(gmap_coords_df$lon), 
-                                    Latitude = mean(gmap_coords_df$lat) + 0.001), 
-                      zoom = 15, 
-                      maptype = "roadmap", scale = 2)
-# base map
-ggmap(gg_map_base) 
-
-title <- "Ten Locations around UWM"
-ggmap(gg_map_base) + # plot the map with all uwm points on it
-  geom_point(data = gmap_coords_df, aes(x = lon, 
-                                        y = lat, 
-                                        alpha = 0.6), 
-             fill = "red", 
-             size = 1, 
-             shape = 21) +
+plan_crow_flights <- function(df, id, units = "miles")
+  # help from: http://www.nagraj.net/notes/calculating-geographic-distance-with-r/
+{
+  # About:
+  #   plan_crow_flights() calculates as a crow flies (geodesic) distance between coordinates. 
+  #   (Popular among crows planning their migration)
+  # 
+  # Args:
+  #   df: dataframe
+  #   id: var name as a string that uniquely identifies what a lat/long coordinate represents. 
+  #       A place? An address? 
+  #   units: units distance is calculated in. Passed to (and so options restricted by) Imap::gdist
+ 
+  if(all((names(df) %in% id) == F)) {
+    stop("Error: Your id variable isn't in the dataframe. Try adding it and rerunning.")
+  }
   
-  guides(alpha = F, size = F, fill = F) +
-  ggtitle(title) +
-  theme(plot.title = element_text(hjust = 0.5))
-
-dev.off()
-
-ggsave(title, 
-       height = 10, 
-       width = 10,
-       device = "jpeg", 
-       path = "./Plots")
-
-# Get variables in a sensible order
-adh_uwm %>%
-  select(whole_address, location_no_suffix, day, hour, tickets, lat, lon, everything()) -> adh_uwm
-
-
-gmap_addr <- unique_coordinates %>%
-  inner_join(unique(top_uwm_gmap$Time %>% select(or)), 
-             by = c("coordinates" = "or"))
-
-
-adh_uwm %>%
-  inner_join(gmap_addr, by = "whole_address") -> gmap_tix_adh
-
-glimpse(gmap_tix_adh)
-
-
-glimpse(gmap_coords_df)
-glimpse(gmap_tix_adh)
-
-ggmap(gg_map_base) + 
+  require(tibble)
+  require(Imap)
   
-  geom_point(data = sample_n(gmap_tix_adh, 1000), 
-             aes(x = as.numeric(as.character(lon)), 
-                 y = as.numeric(as.character(lat)), 
-                 frame = day,
-                 fill = hour,
-                 alpha = 0.3), 
-             size = 1, 
-             shape = 21) +
+  # calculate crow distance with Imap::gdist()
+  dist_list <- list() 
   
-  geom_jitter() +
+  for (i in 1:nrow(df)) {
+    dist_list[[i]] <- gdist(
+                            lat.1 = df$lat, 
+                            lon.1 = df$lon,
+                            lat.2 = df$lat[i], 
+                            lon.2 = df$lon[i],
+                            units = units)
+  }
   
-  guides(alpha = F, 
-         size = F, 
-         fill = F) +
+  # unlist and convert to a named matrix 
   
-  labs(title = title) +
-  theme(plot.title = element_text(hjust = 0.5)) -> animate_me
+  dist_mat <- sapply(dist_list, unlist)
+  colnames(dist_mat) <- df[, which(colnames(df) %in% id )]
+  rownames(dist_mat) <- df[, which(colnames(df) %in% id )]
+  
+  # convert matrix to df to get address as var
+  tibble::rownames_to_column(data.frame(dist_mat), 
+                             var = id) -> dist_df
+  return(dist_df)
+  }
 
-# Try to annimate these ten addresses 
-gganimate(animate_me,  interval = .6)
+
+plan_crow_flights(uwm_addrs, 
+                  id = "whole_address")
 
 
 
-
-
-# get_Nearest_ticket() function finds the nearest ticketed address from an input and spits out 
-# its location and distance from input address.
-
-# Input: a whole_address in an hour on a given day. 
-# Output: 
-#   Exact time and address of <nearest> ticket in the last <twelve> hours
-#   Driving time and distance between input and output
-#  
+# get nearby tickets and find their addresses within timeframe
+# then get distances 
+# then find closest on via get_nearest_address
+# then the num spots between there and here
+# then street vars like side, same side, etc.
 
 glimpse(adh_uwm)
-glimpse(top_uwm_gmap$Time)
-max(top_uwm_gmap$Time$Time)
+glimpse(tickets)
+
+scour_historic_tix <- function(time_series_df, tix_lookup, hrs_within = 24)
+{
+# About: 
+#   scour_historic_tix() scours a time series df and gets all the tickets (and accompanying info)
+#   issued within a certain number of hours of a given time and address.
+#
+# Args:
+#   time_series_df: df at hour/day/address level. 
+#   tix_lookup: df of all tickets issued
+#   hrs_within: number of hours to get tickets issued before hour in time series.
+
+  
+  
+  }
+
+adh_uwm %>% summary
+
+# fix issue time and date in tickets
+tickets$issue_dttm <-  as.POSIXct(tickets$issue_dttm) 
+
+# add begining hour to tix time series
+adh_uwm %>% mutate(hour_start = as.POSIXct(as.Date(day) + hours(hour)), 
+                   hour_end = as.POSIXct(as.Date(day) + hours(hour + 1))) -> adh_uwm
+
+# get all tickets issued within the hour
+sqldf::sqldf("select ts.*, t.tixno, t.issue_dttm, t.location
+            
+              from adh_uwm ts 
+             
+             left join tickets t 
+              on t.hour = ts.hour
+              and t.issuedt = ts.day
+              and t.issue_dttm between ts.hour_start and ts.hour_end
+              limit 100
+             ") %>% 
+  select(hour_start, tickets, whole_address, tixno, issue_dttm, location) %>% head
 
 
-get_Nearest_ticket <- function(distance_matrix, addresses) {
+
+
+
+
+
+
+
+get_Nearest_address <- function(distance_matrix) 
+{
+  # About
+  #   get_Nearest_address() finds the closest address to i given a set of i, j1, j2, where 
+  #   i is an address and jn is an address around it. Addresses with tickets in the last T 
+  #   hours are fed to this function. (typically)
+  #
+  # args: 
+  #   distance_matrix. could be either a data frame or matrix object with Assumes the first 
+  #   column of distance_matrix is the whole address. Each subsequent column is one of these 
+  #   addresses, and the values are the distance in miles between it and row address.
+  #
+  # Notes: 
+  #   
   
-  for (c in 1:ncol(distance_matrix)) {
-    
-    closest_rank <- match(min(distance_matrix[distance_matrix[,c]!=0,c]), distance_matrix[,c])
-    distance <- distance_matrix[closest_rank]
-    closest_location <- addresses[addresses$rank==closest_rank, "location"]
-    row <- cbind(closest_rank, distance, closest_location)
-    if(c == 1){
-      df_to_add  <<- row
-    } else {
-      df_to_add <<- data.frame(rbind(df_to_add, row))
-    } #end if
-    print(row)
-  }# end for
+  # create data frame 
+  address_lookup <- data.frame(address = NA, 
+                                   nearest_address = NA, 
+                                   miles_away = NA)
   
-  # create new data frame of addresses with distance to closest ticket. 
-  # columns must be the same to cbind()
+  for (i in 1:nrow(dist_mat)) {
+      
+      # find the nearest address  
+      match(min(dist_df[dist_df[ , i+1] != 0, i+1]), 
+            dist_df[ , i+1]) -> row_id_of_nearest_address
+      
+      # then store all the info about it
+      address_lookup[i, 1] <- dist_df[i,1]
+      address_lookup[i, 2] <- dist_df[row_id_of_nearest_address, 1]
+      address_lookup[i, 3] <- dist_df[row_id_of_nearest_address, i+1]
+      
+      
+      # print status report. Uncomment to see how this runs in real time. 
+      # print(
+      #   paste("The closest address to", address_lookup[i,1], 
+      #             "is", address_lookup[i,2], "at", round(address_lookup[i, 3], 3),
+      #             "miles away (", round(address_lookup[i, 3]*5280), "ft)")
+      #   )
+      
+    } # end for
   
-  #names(df_to_add) <<- c("closest_rank", "distance", "closest_location")
+  return(address_lookup)
   
-  addresses_new <<- cbind(addresses, df_to_add)
-  
-}#end function
+} # end function
+
+
+
+
+
+
+
+
+

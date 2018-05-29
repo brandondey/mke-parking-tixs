@@ -62,7 +62,7 @@ ggmap(gg_map_base) +
 
 # Annimate
 gganimate(animate_me,  
-          interval = 1.5,
+          interval = .2,
           cumulative = F # Each image generates with new data. Pic doesn't grow cumulatively
           )
 
