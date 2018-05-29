@@ -13,6 +13,12 @@
 #  
 # Highlights: 
 #   
+# working to do 
+#   get nearby tickets and find their addresses within timeframe
+#   then get distances 
+#   then find closest on via get_nearest_address
+#   then get street vars num spots between there and here, side, same side, etc.
+
 
 # ^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^_^
 # Environment
@@ -82,12 +88,6 @@ plan_crow_flights(uwm_addrs,
 
 
 
-# get nearby tickets and find their addresses within timeframe
-# then get distances 
-# then find closest on via get_nearest_address
-# then the num spots between there and here
-# then street vars like side, same side, etc.
-
 glimpse(adh_uwm)
 glimpse(tickets)
 
@@ -106,7 +106,7 @@ scour_historic_tix <- function(time_series_df, tix_lookup, hrs_within = 24)
   
   }
 
-adh_uwm %>% summary
+adh_uwm %>% glimpse
 
 # fix issue time and date in tickets
 tickets$issue_dttm <-  as.POSIXct(tickets$issue_dttm) 
@@ -116,9 +116,9 @@ adh_uwm %>% mutate(hour_start = as.POSIXct(as.Date(day) + hours(hour)),
                    hour_end = as.POSIXct(as.Date(day) + hours(hour + 1))) -> adh_uwm
 
 # get all tickets issued within the hour
-sqldf::sqldf("select ts.*, t.tixno, t.issue_dttm, t.location
+sqldf::sqldf("select ts.*, t.tixno, t.issue_dttm, t.location, t.lat, t.long
             
-              from adh_uwm ts 
+            from adh_uwm ts 
              
              left join tickets t 
               on t.hour = ts.hour
@@ -126,7 +126,12 @@ sqldf::sqldf("select ts.*, t.tixno, t.issue_dttm, t.location
               and t.issue_dttm between ts.hour_start and ts.hour_end
               limit 100
              ") %>% 
-  select(hour_start, tickets, whole_address, tixno, issue_dttm, location) %>% head
+  select(hour_start, tickets, whole_address, tixno, issue_dttm, location, lat, long) %>% head
+
+#########
+## this is where i left off. need to limit the tixs tht join in the sql above by proximity. get
+# proximity using plan_crow_flights()
+#########
 
 
 
