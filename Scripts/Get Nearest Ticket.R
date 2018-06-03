@@ -71,7 +71,6 @@ plan_crow_flights <- function(df, id, units = "miles")
   }
   
   # unlist and convert to a named matrix 
-  
   dist_mat <- sapply(dist_list, unlist)
   colnames(dist_mat) <- df[, which(colnames(df) %in% id )]
   rownames(dist_mat) <- df[, which(colnames(df) %in% id )]
@@ -115,24 +114,108 @@ tickets$issue_dttm <-  as.POSIXct(tickets$issue_dttm)
 adh_uwm %>% mutate(hour_start = as.POSIXct(as.Date(day) + hours(hour)), 
                    hour_end = as.POSIXct(as.Date(day) + hours(hour + 1))) -> adh_uwm
 
-# get all tickets issued within the hour
-sqldf::sqldf("select ts.*, t.tixno, t.issue_dttm, t.location, t.lat, t.long
-            
+
+names(tickets) <- paste("t_",names(tickets), sep = "")
+
+############################################
+## get all tickets issued within the hour ##
+############################################
+sqldf::sqldf("select ts.*, t.* 
             from adh_uwm ts 
-             
-             left join tickets t 
-              on t.hour = ts.hour
-              and t.issuedt = ts.day
-              and t.issue_dttm between ts.hour_start and ts.hour_end
-              limit 100
-             ") %>% 
-  select(hour_start, tickets, whole_address, tixno, issue_dttm, location, lat, long) %>% head
+             left join tickets t
+               on ts.whole_address = '1813 E LOCUST ST'
+                  and t.t_issue_dttm between ts.hour_start and ts.hour_end
+             where 1=1
+             and ts.whole_address = '1813 E LOCUST ST'") -> test_cart
 
-#########
-## this is where i left off. need to limit the tixs tht join in the sql above by proximity. get
-# proximity using plan_crow_flights()
-#########
+glimpse(test_cart)
 
+test_cart %>% 
+  select(tickets, 
+         lat, lon, 
+         whole_address,
+         hour_start, 
+         hour_end, 
+         t_tixno, 
+         t_location, 
+         t_lat, 
+         t_long) -> test_cart
+
+test_cart %>% glimpse
+
+# get unique address combos in cartesian_prod
+uneek_vars <- c("lat", "lon", "whole_address", "t_location", "t_lat", "t_long")
+
+
+
+trim_tix_radius <- function(cartesian_prod, miles_within) 
+{
+  # About: 
+  #   takes a cartesian product of a time series address object and all tickets issued in the hour and
+  #   trims it to exclude tickets that were issued at addresses farther than miles_within from each 
+  #   address.
+  #
+  # Args:    
+  #   cartesian_prod: df, which is a cartesian product of a times series address/hour/day df and all tickets 
+  #     issued in hour/day 
+  #
+  #   miles_within: # of miles within each address to find tickets issued.
+  
+  require(Imap)
+  require(magrittr)
+  require(ggmap)
+  
+  # get unique lat/lon - lat/long combos.
+  uneek_vars <- c("lat", "lon", "whole_address", "t_location", "t_lat", "t_long")
+  
+  test_cart %>% 
+    mutate(id = 1:n()) %>%
+    group_by(lat, lon, whole_address, t_location, t_lat, t_long) -> test_cart 
+  
+  
+  test_cart %>%
+    select(one_of(uneek_vars)) %>% 
+    unique -> unique_cart
+  
+  all_distances <- data.frame()
+  for (i in seq_along(unique_cart)) {
+  
+  gmap::gdist(lat.1 = unique_cart$lat, 
+              lon.1 = unique_cart$lon, 
+              lat.2 = unique_cart$t_lat[i], 
+              lon.2 = unique_cart$t_long[i], 
+              units = "miles") -> i_dist
+  
+    all_distances[i, 1] <- unique_cart[i, which(uneek_vars %in% "whole_address")] # address
+    all_distances[i, 2] <- i_dist["t_lat"] 
+    all_distances[i, 3] <- i_dist["t_long"]
+  }  
+  
+}
+
+
+test_cart %>% 
+  mutate(id = 1:n()) %>%
+  group_by(lat, lon, whole_address, t_location, t_lat, t_long) -> test_cart 
+
+
+test_cart %>%
+  select(one_of(uneek_vars)) %>% 
+  unique -> unique_cart
+
+all_distances <- data.frame()
+for (i in 1:nrow(unique_cart)) {
+  
+  Imap::gdist(lat.1 = unique_cart$lat, 
+              lon.1 = unique_cart$lon, 
+              lat.2 = unique_cart$t_lat[i], 
+              lon.2 = unique_cart$t_long[i], 
+              units = "miles") -> i_dist
+  
+  all_distances[i, 1] <- unique_cart[i, which(uneek_vars %in% "whole_address")] # address
+  all_distances[i, 2] <- i_dist["t_lat"] 
+  all_distances[i, 3] <- i_dist["t_long"]
+}  
 
 
 
